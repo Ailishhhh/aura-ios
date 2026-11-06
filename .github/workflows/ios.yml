@@ -1,0 +1,115 @@
+name: iOS
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      video:
+        description: Video id the simulator smoke test plays
+        default: dQw4w9WgXcQ
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  checks:
+    name: Tests and live extraction (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: npm test
+      - run: npx tsc --noEmit
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Resolve a stream from YouTube on the JVM
+        working-directory: shared
+        run: ./gradlew --no-daemon --stacktrace jvmTest -Paura.live=true
+
+  ios:
+    name: Build, simulator smoke test, IPA
+    runs-on: macos-26
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Xcode
+        run: xcodebuild -version && xcrun simctl list runtimes
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ hashFiles('shared/build.gradle.kts') }}
+          restore-keys: konan-${{ runner.os }}-
+
+      - name: Kotlin backend → AuraShared.xcframework
+        run: scripts/build-shared.sh
+
+      - run: npm install --no-audit --no-fund
+      - name: Generate the Xcode project
+        run: npx expo prebuild --platform ios --clean
+
+      - name: Build for the simulator
+        run: |
+          set -o pipefail
+          mkdir -p build
+          xcodebuild -workspace ios/Aura.xcworkspace -scheme Aura -configuration Release \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/sim ARCHS=arm64 ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO build \
+            > build/sim.log 2>&1 || { grep -E "error:|fatal" build/sim.log | head -60; tail -n 60 build/sim.log; exit 1; }
+
+      - name: Smoke test in the simulator
+        run: |
+          scripts/sim-smoke.sh build/sim/Build/Products/Release-iphonesimulator/Aura.app \
+            "${{ github.event.inputs.video || 'dQw4w9WgXcQ' }}" build/smoke
+
+      # Built even when the smoke test fails, so there is always an IPA to look at.
+      - name: Build for iPhone (unsigned)
+        if: ${{ !cancelled() }}
+        run: |
+          set -o pipefail
+          xcodebuild -workspace ios/Aura.xcworkspace -scheme Aura -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build/device \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build \
+            > build/device.log 2>&1 || { grep -E "error:|fatal" build/device.log | head -60; tail -n 60 build/device.log; exit 1; }
+          version="$(node -p "require('./app.json').expo.version")"
+          rm -rf build/Payload && mkdir -p build/Payload
+          cp -R build/device/Build/Products/Release-iphoneos/Aura.app build/Payload/
+          (cd build && zip -qry "Aura-$version.ipa" Payload)
+          ls -lh build/*.ipa
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: aura-ios-${{ github.run_number }}
+          path: |
+            build/*.ipa
+            build/smoke/
+            build/*.log
+          if-no-files-found: warn
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" build/*.ipa --title "Aura ${GITHUB_REF_NAME}" --generate-notes

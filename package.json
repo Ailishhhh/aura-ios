@@ -1,0 +1,24 @@
+{
+  "name": "aura-ios",
+  "version": "0.1.0",
+  "private": true,
+  "license": "GPL-3.0-only",
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start --dev-client",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test test/*.test.ts",
+    "prebuild:ios": "expo prebuild --platform ios --clean"
+  },
+  "dependencies": {
+    "expo": "~58.0.23",
+    "expo-status-bar": "~58.0.4",
+    "react": "19.3.0",
+    "react-native": "0.88.1",
+    "react-native-safe-area-context": "~5.11.1"
+  },
+  "devDependencies": {
+    "@types/react": "~19.3.0",
+    "typescript": "~6.0.3"
+  }
+}
