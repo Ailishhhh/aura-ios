@@ -78,7 +78,7 @@ jobs:
           mkdir -p build
           xcodebuild -workspace ios/Aura.xcworkspace -scheme Aura -configuration Release \
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath build/sim ARCHS=arm64 ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO build \
+            -derivedDataPath build/sim ARCHS=arm64 ONLY_ACTIVE_ARCH=NO CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= build \
             > build/sim.log 2>&1 || { grep -E "error:|fatal" build/sim.log | head -60; tail -n 60 build/sim.log; exit 1; }
 
       - name: Smoke test in the simulator

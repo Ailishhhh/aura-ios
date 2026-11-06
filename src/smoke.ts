@@ -52,7 +52,15 @@ export async function runSmoke(url: string) {
     }
     await save();
 
-    await queue.playSong({ id: link.videoId, title: String((report.resolve as any).title ?? ""), artists: [] });
+    await queue.playSong({
+      id: link.videoId,
+      type: "song",
+      title: String((report.resolve as any).title ?? ""),
+      artists: [],
+      album: null,
+      thumbnail: null,
+      duration: null,
+    });
     const playing = await until((s) => s.player.state === "playing" && s.player.position > 3, 45_000);
     const now = queue.snapshot();
     report.playback = {

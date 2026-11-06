@@ -1,0 +1,196 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<!--
+  Hosts <am-lyrics> (MPL-2.0, https://github.com/binimum/am-lyrics, see LICENSE-am-lyrics.txt).
+  Kotlin fetches the lyrics and owns playback; this page only draws them. See LEARNINGS.md.
+-->
+<style>
+  @font-face {
+    font-family: 'Instrument Serif';
+    src: url('instrument_serif.ttf') format('truetype');
+  }
+
+  /* In this WebView's main frame, 100vh and percentage heights compute to 0: never chain
+     html/body -> 100%. Pin the body to the viewport instead. */
+  html, body { background: transparent; }
+  body {
+    position: fixed;
+    inset: 0;
+    margin: 0;
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  am-lyrics {
+    position: absolute;
+    inset: 0;
+    height: auto;
+    /* Colours every lyric, not just the active word: keep it cream and let opacity/blur
+       separate the lines. */
+    --am-lyrics-highlight-color: #ECE4D6;
+    --highlight-color: #ECE4D6;
+    --lyplus-font-size-base: 34px;
+    --am-lyrics-compact-font-size: 32px;
+    --am-lyrics-line-spacing: 26px;
+    --am-lyrics-compact-line-spacing: 22px;
+    --am-lyrics-inline-padding: 26px;
+    --am-lyrics-highlight-surface: rgba(236, 228, 214, 0.06);
+    --am-lyrics-compact-selected-position: 24%;
+    --lyrics-scroll-padding-top: 24%;
+    /* Fade the words themselves out at the top and bottom. A dark band painted over them shows as
+       a hard stripe on the blurred cover behind the glass player; a mask stays clear. */
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 56px, #000 calc(100% - 72px), transparent 100%);
+    mask-image: linear-gradient(to bottom, transparent 0, #000 56px, #000 calc(100% - 72px), transparent 100%);
+  }
+</style>
+<script type="module" src="am-lyrics.js"></script>
+</head>
+<body>
+<am-lyrics id="ly" font-family="'Instrument Serif', Georgia, serif" autoscroll interpolate></am-lyrics>
+<script type="module">
+  const el = document.getElementById('ly');
+  await customElements.whenDefined('am-lyrics');
+  await el.updateComplete;
+
+  // Patch the component's own chrome inside its shadow root.
+  //  - max-height: 100vh collapses to 0 here, so lift it.
+  //  - The header (source switch, download) isn't ours to show.
+  //  - The source footer must stay in layout: autoscroll measures the last element to find the
+  //    scroll range, and display:none would zero it and stop scrolling entirely.
+  const patch = new CSSStyleSheet();
+  patch.replaceSync(`
+    .lyrics-container { max-height: none !important; }
+    .lyrics-header, .header-controls, .download-controls { display: none !important; }
+    .lyrics-footer { visibility: hidden !important; pointer-events: none !important; }
+  `);
+  el.shadowRoot.adoptedStyleSheets = [...el.shadowRoot.adoptedStyleSheets, patch];
+
+  // ---- The clock -------------------------------------------------------------------------
+  // Kotlin samples the player ~every 80 ms; this page advances the time every frame. Media3
+  // reports position in ~250 ms chunks, so re-anchoring on every push would drag the clock
+  // backwards, which am-lyrics reads as a rewind and cancels the word wipes. While playing,
+  // keep a monotonic local clock and only re-anchor on a real jump.
+  const FORWARD_DRIFT_MS = 120;
+  const BACKWARD_SEEK_MS = 600;
+  let baseMs = 0;
+  let baseAt = performance.now();
+  let rate = 1;
+  let playing = false;
+  let paused = false;
+  let wasPlaying = false;
+  let lastSet = -1;
+
+  function show(t) {
+    const ms = Math.max(0, Math.round(t));
+    if (ms !== lastSet) {
+      lastSet = ms;
+      el.currentTime = ms;
+    }
+  }
+
+  // ---- Pausing ---------------------------------------------------------------------------
+  // am-lyrics has no paused state. It starts each word's wipe up to 500 ms early, as a native
+  // animation that then runs on its own, so a paused song (say, the next one, waiting at 0:00)
+  // would still sing its first words. While paused, hold the motion that stands for time passing:
+  // wipes, word and letter lifts, the breathing gap dots. Scrolling and layout keep moving.
+  const held = new Set();
+  const timed = new WeakMap();
+
+  function isTimed(animation) {
+    let verdict = timed.get(animation);
+    if (verdict === undefined) {
+      const effect = animation.effect;
+      const target = effect && effect.target;
+      verdict =
+        target instanceof Element &&
+        (target.closest('.lyrics-word, .lyrics-gap') !== null ||
+          // Wipes, and the next line coming into focus as its time nears.
+          effect.getKeyframes().some((frame) => 'backgroundPosition' in frame || 'filter' in frame));
+      timed.set(animation, verdict);
+    }
+    return verdict;
+  }
+
+  function hold() {
+    for (const animation of el.shadowRoot.getAnimations()) {
+      if (animation.playState === 'running' && isTimed(animation)) {
+        animation.pause();
+        held.add(animation);
+      }
+    }
+  }
+
+  function release() {
+    for (const animation of held) if (animation.playState === 'paused') animation.play();
+    held.clear();
+  }
+
+  window.sync = (pos, isPlaying, nextRate) => {
+    const now = performance.now();
+    if (!isPlaying) {
+      playing = false;
+      paused = true;
+      wasPlaying = false;
+      baseMs = pos;
+      baseAt = now;
+      show(pos);
+      hold();
+      return;
+    }
+    paused = false;
+    if (held.size) release();
+    // Starting, resuming, or the first push after the page stopped painting: hard reset.
+    if (!wasPlaying) {
+      baseMs = pos;
+      baseAt = now;
+      rate = nextRate;
+      wasPlaying = true;
+      playing = true;
+      show(pos);
+      return;
+    }
+    const displayed = baseMs + (now - baseAt) * rate;
+    const drift = pos - displayed;
+    if (drift > FORWARD_DRIFT_MS || drift < -BACKWARD_SEEK_MS) {
+      baseMs = pos;
+      baseAt = now;
+      rate = nextRate;
+    }
+  };
+
+  // requestAnimationFrame stops while the WebView isn't composited; Kotlin calls this when the
+  // lyrics come back on screen so the next push re-anchors.
+  window.resetClock = () => { wasPlaying = false; };
+
+  function frame(now) {
+    if (playing) show(baseMs + (now - baseAt) * rate);
+    else if (paused) hold();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  // ---- Tracks ----------------------------------------------------------------------------
+  // am-lyrics only reloads when `ttml` changes *without* `currentTime` in the same update, so
+  // set the lyrics, let that render, and only then rewind the clock.
+  window.setTrack = async (ttml) => {
+    wasPlaying = false;
+    lastSet = -1;
+    el.ttml = ttml;
+    await el.updateComplete;
+    show(0);
+    if (el.lyricsContainer) el.lyricsContainer.scrollTop = 0;
+  };
+
+  el.addEventListener('line-click', (e) => {
+    if (window.AuraBridge) AuraBridge.seek(e.detail.timestamp);
+  });
+
+  if (window.AuraBridge) AuraBridge.ready();
+</script>
+</body>
+</html>

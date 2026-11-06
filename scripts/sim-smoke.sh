@@ -20,7 +20,10 @@ echo "Simulator: $device"
 xcrun simctl boot "$device" 2>/dev/null || true
 xcrun simctl bootstatus "$device" -b
 # Apple silicon simulators refuse to launch unsigned apps; an ad-hoc signature is enough.
-codesign --force --deep --sign - "$app"
+codesign --verify "$app" 2>/dev/null || codesign --force --deep --sign - "$app"
+codesign -dv "$app" 2>&1 | head -5 || true
+plutil -p "$app/Info.plist" | grep -E "CFBundleIdentifier|MinimumOSVersion|CFBundleExecutable|UIDeviceFamily|CFBundleSupportedPlatforms" -A1 || true
+lipo -info "$app/$(plutil -extract CFBundleExecutable raw "$app/Info.plist")" || true
 xcrun simctl install "$device" "$app"
 sleep 5
 
@@ -39,7 +42,16 @@ for attempt in 1 2 3 4; do
   echo "Launch attempt $attempt failed; SpringBoard may still be settling"
   sleep 15
 done
-[ "$launched" = yes ] || { echo "::error::Aura wouldn't launch in the simulator"; exit 1; }
+if [ "$launched" != yes ]; then
+  echo "::error::Aura wouldn't launch in the simulator"
+  echo "--- Can the simulator launch Settings? ---"
+  xcrun simctl launch "$device" com.apple.Preferences || true
+  echo "--- What SpringBoard and RunningBoard said ---"
+  xcrun simctl spawn "$device" log show --last 3m --style compact \
+    --predicate 'eventMessage CONTAINS[c] "aura" OR process == "runningboardd" AND eventMessage CONTAINS[c] "denied"' 2>/dev/null | tail -n 60 || true
+  xcrun simctl appinfo "$device" "$bundle" || true
+  exit 1
+fi
 sleep 10
 xcrun simctl io "$device" screenshot "$out/1-launch.png"
 
