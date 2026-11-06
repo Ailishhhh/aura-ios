@@ -32,11 +32,14 @@ jobs:
       - run: npm test
       - run: npx tsc --noEmit
       - uses: actions/setup-java@v4
+        if: ${{ !cancelled() }}
         with:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
+        if: ${{ !cancelled() }}
       - name: Resolve a stream from YouTube on the JVM
+        if: ${{ !cancelled() }}
         working-directory: shared
         run: ./gradlew --no-daemon --stacktrace jvmTest -Paura.live=true
 

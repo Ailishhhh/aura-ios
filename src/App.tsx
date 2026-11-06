@@ -52,7 +52,7 @@ export default function App() {
 
   // aura:// links, from the share sheet, Shortcuts, tryaura.today or CI.
   useEffect(() => {
-    const handle = (url: string | null) => {
+    const handle = (url: string | null | undefined) => {
       if (!url) return;
       if (url.startsWith("aura://smoke")) {
         void runSmoke(url);
