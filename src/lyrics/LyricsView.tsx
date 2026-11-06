@@ -1,15 +1,18 @@
 // The Android app's lyrics page (am-lyrics in a WebView), fed the player's clock ~12 times a second.
 // The page keeps its own forward-only clock between pushes, so word wipes never stutter.
 
-import { useEffect, useRef } from "react";
+import { ComponentType, useEffect, useRef } from "react";
 import { StyleProp, View, ViewStyle } from "react-native";
 import { WebView } from "react-native-webview";
 
 import { queue } from "../player/queue";
 import { LYRICS_PAGE } from "./page.generated";
 
+// react-native-webview's class types resolve to `never` props under React 19.3's types.
+const Web = WebView as unknown as ComponentType<Record<string, unknown> & { ref?: unknown }>;
+
 export function LyricsView({ ttml, style }: { ttml: string; style?: StyleProp<ViewStyle> }) {
-  const web = useRef<WebView>(null);
+  const web = useRef<{ injectJavaScript: (js: string) => void } | null>(null);
   const ready = useRef(false);
   const shown = useRef<string | null>(null);
 
@@ -35,7 +38,7 @@ export function LyricsView({ ttml, style }: { ttml: string; style?: StyleProp<Vi
 
   return (
     <View style={style}>
-      <WebView
+      <Web
         ref={web}
         originWhitelist={["*"]}
         source={{ html: LYRICS_PAGE, baseUrl: "https://tryaura.today/" }}
@@ -47,7 +50,7 @@ export function LyricsView({ ttml, style }: { ttml: string; style?: StyleProp<Vi
         showsVerticalScrollIndicator={false}
         allowsInlineMediaPlayback={false}
         javaScriptEnabled
-        onMessage={(event) => {
+        onMessage={(event: { nativeEvent: { data: string } }) => {
           try {
             const message = JSON.parse(event.nativeEvent.data);
             if (message.type === "ready") {

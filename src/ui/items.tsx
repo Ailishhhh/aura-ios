@@ -242,7 +242,11 @@ const styles = StyleSheet.create({
   rowText: { flex: 1, gap: 2 },
   number: { width: 28, alignItems: "center" },
   nowOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     borderRadius: radius.s,
     backgroundColor: "rgba(15,14,12,0.55)",
     alignItems: "center",
