@@ -98,6 +98,7 @@ jobs:
           version="$(node -p "require('./app.json').expo.version")"
           rm -rf build/Payload && mkdir -p build/Payload
           cp -R build/device/Build/Products/Release-iphoneos/Aura.app build/Payload/
+          echo "App extensions:" && ls build/Payload/Aura.app/PlugIns || echo "::warning::No share extension in the app"
           (cd build && zip -qry "Aura-$version.ipa" Payload)
           ls -lh build/*.ipa
 

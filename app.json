@@ -30,7 +30,8 @@
         }
       ],
       "expo-sqlite",
-      "expo-font"
+      "expo-font",
+      "./plugins/withShareToAura"
     ],
     "experiments": {
       "typedRoutes": false
