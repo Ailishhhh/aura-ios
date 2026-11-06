@@ -75,12 +75,16 @@ final class ShareViewController: UIViewController {
     return URL(string: "aura://open?url=\(encoded)")
   }
 
-  /// Extensions can't call UIApplication.shared, but the app object is in the responder chain.
+  /// Extensions can't call UIApplication.shared or its open method directly, but the app object
+  /// is in the responder chain and still answers openURL:options:completionHandler:.
   private func openHostApp(_ url: URL) {
+    typealias OpenURL = @convention(c) (AnyObject, Selector, NSURL, NSDictionary, (@convention(block) (Bool) -> Void)?) -> Void
+    let selector = NSSelectorFromString("openURL:options:completionHandler:")
     var responder: UIResponder? = self
     while let current = responder {
-      if let application = current as? UIApplication {
-        application.open(url, options: [:], completionHandler: nil)
+      if current.responds(to: selector), current !== self, NSStringFromClass(type(of: current)).contains("Application") {
+        let open = unsafeBitCast(current.method(for: selector), to: OpenURL.self)
+        open(current, selector, url as NSURL, NSDictionary(), nil)
         break
       }
       responder = current.next

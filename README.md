@@ -1,55 +1,65 @@
 # Aura for iPhone
 
 Aura, the YouTube Music client, rebuilt for iOS with React Native and Expo. The Android app lives
-in [laura](https://github.com/Ailishhhh/laura); this repo is its iOS sibling.
+in [laura](https://github.com/Ailishhhh/laura); this is its iPhone sibling.
 
-**Status: phase 0.** A plain test screen that searches YouTube Music, plays songs in the
-background with lock-screen controls, continues into a radio, and opens YouTube Music links.
-The real Aura interface comes next.
+## What's in it
+
+- **Native iOS 26 design.** The system Liquid Glass tab bar (Home, Explore, Library, and Search
+  as its own round tab), with the mini player in the tab bar's accessory, like Apple Music.
+  Older iPhones get a frosted tab bar and a floating glass mini player.
+- **Aura's look.** Every cover printed in one of the Android app's four dither styles (Noise,
+  Bayer, Halftone, Lines; ported to Skia), Instrument Serif headlines, the warm night palette,
+  tonight's real moon on Home.
+- **Now Playing.** The printed cover over its own colours, blurred and slowly turning. Tap the
+  cover for lyrics, double-tap to like, swipe to skip; it settles back when paused. Up Next, sleep
+  timer with a fade, shuffle, repeat.
+- **Lyrics** from lrc.red and YouTube Music, drawn word by word by am-lyrics, as on Android.
+- **Plays in the background**, with lock screen, Control Center and headphone controls, and
+  carries on into a radio when a song, album or playlist ends.
+- **Library on the phone**: liked songs, playlists you make, saved albums and playlists, followed
+  artists, history and listening stats. Export and import it as a file; the format is the web
+  player's, so the same file moves between them.
+- **Links**: paste a YouTube Music link into Search, use **Share → Aura** from YouTube Music,
+  YouTube or Safari, or open `aura://open?url=<link>` (Shortcuts, tryaura.today).
 
 ## How it fits together
 
 | Part | Path | What it does |
 |---|---|---|
-| App | `src/` | React Native (TypeScript). Queue logic ported from the web player |
+| Screens | `app/` | Expo Router: tabs, shared album/playlist/artist pages, the player and settings as sheets |
+| App logic | `src/` | Queue, library store, lyrics, YouTube Music client (ported from the web player) |
 | Native module | `modules/aura-native/ios/` | Swift: AVQueuePlayer, lock screen, remote commands, audio session |
 | Kotlin backend | `shared/` | Kotlin Multiplatform on [InnerTubeX](https://github.com/MetrolistGroup/innertubex), the same stream extraction the Android app uses, built into `AuraShared.xcframework` |
-| CI | `.github/workflows/ios.yml` | Builds everything on a GitHub macOS runner, runs a smoke test in the iOS Simulator, and produces an unsigned `.ipa` |
+| Share extension | `plugins/` | Config plugin and Swift for Share → Aura |
+| CI | `.github/workflows/ios.yml` | Builds on a GitHub macOS runner, tests in the iOS Simulator, produces an unsigned `.ipa` |
 
-iOS can't play Opus/WebM, so the backend asks InnerTubeX for AAC (MP4) streams only.
+iOS can't play Opus/WebM, so the backend only asks InnerTubeX for AAC (MP4) streams.
 
 ## Building without a Mac
 
-Every push to `main` builds on GitHub Actions. The run's artifact holds:
+Every push to `main` builds on GitHub Actions. Each run's artifact holds:
 
 - `Aura-<version>.ipa`, unsigned, for sideloading
-- `smoke/`: screenshots and `smoke.json` from the simulator test (resolve → play → move to next song)
+- `smoke/`: screenshots and `smoke.json` from the simulator test (resolve → play → next song)
 - build logs
 
-Pushing a tag like `v0.1.0` also attaches the IPA to a GitHub release.
+Pushing a tag like `v0.2.0` also attaches the IPA to a GitHub release.
 
 ## Installing on an iPhone
 
 The IPA is unsigned. Install it with [AltStore](https://altstore.io) or
-[SideStore](https://sidestore.io) (Windows works for the first setup), signed with your own free
-Apple ID. Free Apple IDs keep sideloaded apps working for 7 days at a time and allow 3 of them.
-
-## Opening YouTube Music links
-
-iOS only lets an app claim web links for domains it owns, so Aura can't take over
-`music.youtube.com` the way it does on Android. Links reach it these ways instead:
-
-- **Paste** a link into search.
-- **`aura://` links**: `aura://open?url=<link>`, or YouTube Music paths on Aura's scheme
-  (`aura://watch?v=…`, `aura://playlist?list=…`).
-- **Share sheet** (next phase): "Share → Aura" from YouTube Music, YouTube or Safari.
+[SideStore](https://sidestore.io) (a Windows PC works for the first setup), signed with your own
+free Apple ID. Free Apple IDs keep sideloaded apps working for 7 days at a time, allow 3 apps,
+and count Aura's share extension as a second App ID.
 
 ## Development
 
 ```bash
 npm install
-npm test                     # link parser tests
+npm test                                     # link parser tests
 npx tsc --noEmit
+node scripts/embed-lyrics.mjs                # after changing assets/lyrics
 cd shared && ./gradlew jvmTest -Paura.live=true   # resolves real streams on the JVM
 ```
 
@@ -58,3 +68,4 @@ cd shared && ./gradlew jvmTest -Paura.live=true   # resolves real streams on the
 GPL-3.0, like Aura for Android. It includes code derived from
 [Metrolist](https://github.com/MetrolistGroup/Metrolist) and uses
 [InnerTubeX](https://github.com/MetrolistGroup/innertubex), both GPL-3.0.
+am-lyrics (MPL-2.0) is bundled unmodified; see `assets/lyrics/LICENSE-am-lyrics.txt`.

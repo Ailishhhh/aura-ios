@@ -58,7 +58,7 @@ module.exports = function withShareToAura(config) {
         MARKETING_VERSION: `"${config.version}"`,
         CURRENT_PROJECT_VERSION: `"${config.ios.buildNumber || "1"}"`,
         SKIP_INSTALL: "YES",
-        APPLICATION_EXTENSION_API_ONLY: "NO",
+        APPLICATION_EXTENSION_API_ONLY: "YES",
       });
     }
     return config;
