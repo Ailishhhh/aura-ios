@@ -19,15 +19,27 @@ print(phones[0]["udid"])
 echo "Simulator: $device"
 xcrun simctl boot "$device" 2>/dev/null || true
 xcrun simctl bootstatus "$device" -b
+# Apple silicon simulators refuse to launch unsigned apps; an ad-hoc signature is enough.
+codesign --force --deep --sign - "$app"
 xcrun simctl install "$device" "$app"
+sleep 5
 
 xcrun simctl spawn "$device" log stream --style compact --level info \
   --predicate 'process == "Aura"' > "$out/device.log" 2>&1 &
 log_pid=$!
 trap 'kill $log_pid 2>/dev/null || true' EXIT
 
-xcrun simctl launch --terminate-running-process \
-  --stdout="$out/stdout.log" --stderr="$out/stderr.log" "$device" "$bundle"
+launched=no
+for attempt in 1 2 3 4; do
+  if xcrun simctl launch --terminate-running-process \
+    --stdout="$out/stdout.log" --stderr="$out/stderr.log" "$device" "$bundle"; then
+    launched=yes
+    break
+  fi
+  echo "Launch attempt $attempt failed; SpringBoard may still be settling"
+  sleep 15
+done
+[ "$launched" = yes ] || { echo "::error::Aura wouldn't launch in the simulator"; exit 1; }
 sleep 10
 xcrun simctl io "$device" screenshot "$out/1-launch.png"
 
