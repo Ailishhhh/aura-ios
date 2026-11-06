@@ -49,8 +49,13 @@ jobs:
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
-      - name: Xcode
-        run: xcodebuild -version && xcrun simctl list runtimes
+      - name: Xcode, and boot a simulator while everything builds
+        run: |
+          xcodebuild -version
+          xcrun simctl list runtimes
+          udid="$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print([x["udid"] for r,xs in sorted(d.items(), reverse=True) if "iOS" in r for x in xs if x["name"].startswith("iPhone")][0])')"
+          echo "SIM_UDID=$udid" >> "$GITHUB_ENV"
+          xcrun simctl boot "$udid" || true
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
