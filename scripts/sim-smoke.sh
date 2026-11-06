@@ -49,7 +49,18 @@ if [ "$launched" != yes ]; then
   echo "--- What SpringBoard and RunningBoard said ---"
   xcrun simctl spawn "$device" log show --last 3m --style compact \
     --predicate 'eventMessage CONTAINS[c] "aura" OR process == "runningboardd" AND eventMessage CONTAINS[c] "denied"' 2>/dev/null | tail -n 60 || true
-  xcrun simctl appinfo "$device" "$bundle" || true
+  echo "--- Signature check ---"
+  codesign --verify --deep --strict --verbose=2 "$app" 2>&1 | tail -n 20 || true
+  echo "--- Running the binary directly, to see dyld's complaint ---"
+  installed="$(xcrun simctl get_app_container "$device" "$bundle" app)"
+  ( DYLD_PRINT_LIBRARIES=0 xcrun simctl spawn "$device" "$installed/Aura" > "$out/spawn.log" 2>&1 & echo $! > "$out/spawn.pid" )
+  sleep 12
+  kill "$(cat "$out/spawn.pid")" 2>/dev/null || true
+  head -c 6000 "$out/spawn.log" || true
+  echo "--- Crash reports ---"
+  mkdir -p "$out/crashes"
+  find ~/Library/Logs/DiagnosticReports -name '*Aura*' -mmin -30 -exec cp {} "$out/crashes/" \; 2>/dev/null || true
+  for report in "$out"/crashes/*; do [ -f "$report" ] && head -c 4000 "$report"; done
   exit 1
 fi
 sleep 10
@@ -66,6 +77,26 @@ for _ in $(seq 1 120); do
     && xcrun simctl io "$device" screenshot "$out/2-playing.png"
 done
 xcrun simctl io "$device" screenshot "$out/3-end.png"
+
+# Photograph the main pages, opened the way shared links open them.
+if [ -f "$report" ]; then
+  sleep 5
+  shot=4
+  for page in $(python3 -c '
+import json, sys, urllib.parse
+p = json.load(open(sys.argv[1])).get("pages") or {}
+links = []
+if p.get("album"): links.append("https://music.youtube.com/browse/" + p["album"])
+if p.get("artist"): links.append("https://music.youtube.com/channel/" + p["artist"])
+if p.get("radio"): links.append("https://music.youtube.com/playlist?list=" + p["radio"])
+print(" ".join("aura://open?url=" + urllib.parse.quote(l, safe="") for l in links))
+' "$report"); do
+    xcrun simctl openurl "$device" "$page" || true
+    sleep 9
+    xcrun simctl io "$device" screenshot "$out/$shot-page.png"
+    shot=$((shot + 1))
+  done
+fi
 
 if [ ! -f "$report" ]; then
   echo "::error::The app never wrote smoke.json"

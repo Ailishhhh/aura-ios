@@ -18,7 +18,7 @@ async function until(test: (s: QueueState) => boolean, timeoutMs: number): Promi
   return null;
 }
 
-export async function runSmoke(url: string) {
+export async function runSmoke(url: string): Promise<void> {
   const report: Record<string, unknown> = { startedAt: new Date().toISOString(), url };
   const save = () => Aura.writeDiagnostics("smoke.json", JSON.stringify(report, null, 2));
   try {
@@ -89,6 +89,13 @@ export async function runSmoke(url: string) {
       state: after.player.state,
       position: after.player.position,
       error: after.error,
+    };
+    // Pages for CI to open and photograph next.
+    const tracks = queue.snapshot().tracks;
+    report.pages = {
+      album: tracks.find((t) => t.album?.id)?.album?.id ?? null,
+      artist: tracks.flatMap((t) => t.artists).find((a) => a.id?.startsWith("UC"))?.id ?? null,
+      radio: `RDAMVM${link.videoId}`,
     };
   } catch (error) {
     report.crash = String((error as Error).stack ?? error);
