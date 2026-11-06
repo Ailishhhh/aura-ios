@@ -4,11 +4,13 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useEffect } from "react";
 import { View } from "react-native";
 
+import { welcome } from "../src/lib/store";
 import { runSmoke } from "../src/smoke";
 
 export default function Smoke() {
   const { v } = useLocalSearchParams<{ v?: string }>();
   useEffect(() => {
+    welcome.set({ ...welcome.get(), seen: true });
     // Show the player while the test runs, so CI's screenshots show it working; close it after,
     // so the pages CI opens next are on top.
     const timer = setTimeout(() => router.replace("/player"), 2500);

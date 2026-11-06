@@ -15,7 +15,7 @@ Pod::Spec.new do |s|
 
   # Built from ../../../shared by scripts/build-shared.sh (CI does this before pod install).
   s.vendored_frameworks = 'Frameworks/AuraShared.xcframework'
-  s.frameworks = 'AVFoundation', 'MediaPlayer'
+  s.frameworks = 'AVFoundation', 'MediaPlayer', 'WebKit'
   s.libraries = 'c++'
 
   s.pod_target_xcconfig = {

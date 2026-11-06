@@ -1,5 +1,6 @@
 import AuraShared
 import ExpoModulesCore
+import WebKit
 
 public class AuraNativeModule: Module {
   private lazy var streams = AuraStreams()
@@ -82,6 +83,29 @@ public class AuraNativeModule: Module {
 
     AsyncFunction("getState") { () -> [String: Any] in
       AuraPlayer.shared.snapshot()
+    }.runOnQueue(.main)
+
+    // MARK: Sign-in
+
+    /// The Cookie header the web views' shared store would send to [url]'s host, HttpOnly included.
+    AsyncFunction("getCookies") { (url: String, promise: Promise) in
+      let host = URL(string: url)?.host ?? url
+      WKWebsiteDataStore.default().httpCookieStore.getAllCookies { cookies in
+        let matching = cookies.filter { cookie in
+          let domain = cookie.domain.hasPrefix(".") ? String(cookie.domain.dropFirst()) : cookie.domain
+          let unexpired = cookie.expiresDate.map { $0 > Date() } ?? true
+          return unexpired && (host == domain || host.hasSuffix("." + domain))
+        }
+        promise.resolve(matching.map { "\($0.name)=\($0.value)" }.joined(separator: "; "))
+      }
+    }.runOnQueue(.main)
+
+    /// Forgets every cookie and site storage the web views kept (signing out).
+    AsyncFunction("clearWebData") { (promise: Promise) in
+      let store = WKWebsiteDataStore.default()
+      store.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: .distantPast) {
+        promise.resolve(nil)
+      }
     }.runOnQueue(.main)
 
     // MARK: Diagnostics

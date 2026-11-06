@@ -83,6 +83,9 @@ declare class AuraNativeModule extends NativeModule<Events> {
   setRate(rate: number): Promise<void>;
   getState(): Promise<PlayerState>;
 
+  getCookies(url: string): Promise<string>;
+  clearWebData(): Promise<void>;
+
   writeDiagnostics(name: string, contents: string): Promise<void>;
 }
 

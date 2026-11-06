@@ -13,11 +13,14 @@ import { DitherStyle, Grain, Settings, exportLibrary, importLibrary, setSetting,
 import { radius, space, theme, type } from "../src/theme";
 import { Artwork } from "../src/ui/Artwork";
 import { Icon, Tap, haptic } from "../src/ui/primitives";
+import { signOut } from "../src/yt/account";
+import { useSession } from "../src/yt/session";
 
 const PREVIEW = RNImage.resolveAssetSource(require("../assets/img/cover.jpg")).uri;
 
 export default function SettingsScreen() {
   const s = useValue(settings);
+  const account = useSession();
 
   const exportFile = async () => {
     try {
@@ -49,6 +52,37 @@ export default function SettingsScreen() {
         <Tap onPress={() => router.back()} hitSlop={12} accessibilityLabel="Done">
           <Text style={[type.button, { color: theme.cream }]}>Done</Text>
         </Tap>
+      </View>
+
+      <View style={styles.preview}>
+        {account?.account?.photo ? <Artwork uri={account.account.photo} size={56} round original /> : <Icon name="person.crop.circle.fill" size={48} color={theme.muted} />}
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={type.itemTitle}>{account?.account?.name ?? (account ? "Signed in" : "Not signed in")}</Text>
+          <Text style={type.caption}>{account?.account?.email ?? account?.account?.handle ?? "Sign in to bring your YouTube Music library"}</Text>
+        </View>
+        {account ? (
+          <Tap
+            onPress={() =>
+              Alert.alert("Sign out?", "Your likes and playlists on this iPhone stay here.", [
+                { text: "Cancel", style: "cancel" },
+                { text: "Sign out", style: "destructive", onPress: () => void signOut() },
+              ])
+            }
+            hitSlop={10}
+          >
+            <Text style={[type.button, { color: theme.heart }]}>Sign out</Text>
+          </Tap>
+        ) : (
+          <Tap
+            onPress={() => {
+              router.back();
+              setTimeout(() => router.push("/signin"), 350);
+            }}
+            hitSlop={10}
+          >
+            <Text style={[type.button, { color: theme.cream }]}>Sign in</Text>
+          </Tap>
+        )}
       </View>
 
       <View style={styles.preview}>

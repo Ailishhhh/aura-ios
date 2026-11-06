@@ -156,6 +156,13 @@ export type SavedItem = {
 export type Followed = { id: string; title: string; thumbnail: string | null; at: number };
 export type LocalPlaylist = { id: string; title: string; description: string; tracks: Track[]; created: number; updated: number };
 
+/** Each like, save or follow as it happens, so the YouTube Music account can follow along. */
+export type LibraryChange =
+  | { kind: "like"; id: string; on: boolean }
+  | { kind: "save"; id: string; playlistId: string | null; on: boolean }
+  | { kind: "follow"; id: string; on: boolean };
+export const libraryChanges = new Value<LibraryChange | null>(null);
+
 export const likes = persisted<Liked[]>("likes", []);
 export const saved = persisted<SavedItem[]>("saved", []);
 export const following = persisted<Followed[]>("following", []);
@@ -170,6 +177,7 @@ export function toggleLike(item: Partial<Item> & { id: string }, force?: boolean
   if (want === liked) return want;
   if (want) likes.set([{ ...toTrack(item), at: Date.now() }, ...likes.get()]);
   else likes.set(likes.get().filter((t) => t.id !== item.id));
+  libraryChanges.set({ kind: "like", id: item.id, on: want });
   return want;
 }
 
@@ -196,6 +204,8 @@ export function toggleSaved(item: Partial<Item> & { id: string; type: Item["type
     };
     saved.set([keep, ...saved.get()]);
   } else saved.set(saved.get().filter((s) => s.id !== item.id));
+  const playlistId = item.type === "playlist" ? item.id : (item.playlistId ?? null);
+  libraryChanges.set({ kind: "save", id: item.id, playlistId, on: want });
   return want;
 }
 
@@ -208,6 +218,7 @@ export function toggleFollow(artist: { id: string; title: string; thumbnail?: st
   if (want === has) return want;
   if (want) following.set([{ id: artist.id, title: artist.title, thumbnail: artist.thumbnail ?? null, at: Date.now() }, ...following.get()]);
   else following.set(following.get().filter((a) => a.id !== artist.id));
+  libraryChanges.set({ kind: "follow", id: artist.id, on: want });
   return want;
 }
 

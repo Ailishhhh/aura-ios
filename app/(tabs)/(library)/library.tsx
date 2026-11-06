@@ -15,6 +15,8 @@ import { Artwork } from "../../../src/ui/Artwork";
 import { ItemRow } from "../../../src/ui/items";
 import { GlassButton, Icon, Message, Tap } from "../../../src/ui/primitives";
 import type { Item } from "../../../src/yt/types";
+import { LIBRARY } from "../../../src/yt/account";
+import { useSession } from "../../../src/yt/session";
 
 type Tab = "playlists" | "albums" | "artists";
 
@@ -28,6 +30,7 @@ export default function Library() {
   const mine = useValue(playlists);
   const kept = useValue(saved);
   const artists = useValue(following);
+  const account = useSession();
 
   const newPlaylist = () =>
     Alert.prompt("New playlist", "Give it a name", (name) => {
@@ -55,6 +58,27 @@ export default function Library() {
         <Shortcut icon="clock.fill" title="Listening History" detail={plays.length ? `${plays.length} play${plays.length === 1 ? "" : "s"}` : "What you play shows up here"} onPress={() => router.push(pagePath("(library)", "mine", "history"))} />
         <Shortcut icon="chart.bar.fill" title="Your Listening" detail="Top artists and most played" onPress={() => router.push(pagePath("(library)", "mine", "stats"))} />
       </View>
+
+      {account ? (
+        <View style={{ marginTop: space.xxl }}>
+          <Text style={[type.eyebrow, { paddingHorizontal: space.page, marginBottom: space.s }]}>On YouTube Music</Text>
+          <Shortcut icon="hand.thumbsup.fill" title="Liked Music" detail="Everything you've liked on YouTube Music" onPress={() => router.push(pagePath("(library)", "playlist", LIBRARY.liked))} />
+          <Shortcut icon="music.note.list" title="Your Playlists" detail="Made and saved on YouTube Music" onPress={() => router.push(pagePath("(library)", "browse", LIBRARY.playlists, { title: "Your Playlists" }))} />
+          <Shortcut icon="square.stack.fill" title="Albums" detail="Albums in your YouTube Music library" onPress={() => router.push(pagePath("(library)", "browse", LIBRARY.albums, { title: "Albums" }))} />
+          <Shortcut icon="music.mic" title="Artists" detail="Artists in your YouTube Music library" onPress={() => router.push(pagePath("(library)", "browse", LIBRARY.artists, { title: "Artists" }))} />
+        </View>
+      ) : (
+        <Tap onPress={() => router.push("/signin")} style={[styles.row, { marginTop: space.l }]} scale={0.985}>
+          <View style={styles.badge}>
+            <Icon name="person.crop.circle.badge.plus" size={22} color={theme.cream} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={type.row}>Bring your YouTube Music library</Text>
+            <Text style={type.caption}>Sign in with Google to see your playlists here</Text>
+          </View>
+          <Icon name="chevron.right" size={13} color={theme.faint} />
+        </Tap>
+      )}
 
       <View style={styles.tabs}>
         {(["playlists", "albums", "artists"] as Tab[]).map((t) => (

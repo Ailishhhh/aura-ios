@@ -71,6 +71,11 @@ async function cached<T>(key: string, ttl: number, load: () => Promise<T>, fresh
 
 const stripVL = (id: string) => id.replace(/^VL/, "");
 
+/** Forgets every answer, e.g. after signing in, when the feed is about to become yours. */
+export function clearCache() {
+  memory.clear();
+}
+
 export function home(params?: string | null, fresh = false): Promise<Feed> {
   return cached(
     `home:${params ?? ""}`,
