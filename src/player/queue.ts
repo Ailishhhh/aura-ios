@@ -532,6 +532,10 @@ class Queue {
       album: track.album?.name ?? null,
       artwork: sized(track.thumbnail, 800) ?? stream.thumbnail,
       duration: track.duration ?? stream.durationSeconds,
+      // Some clients' URLs only answer bounded byte ranges; the native side then fetches in chunks.
+      chunkSize: stream.requireBoundedRange || stream.useRangeChunks ? stream.rangeChunkSize || 1_048_576 : null,
+      contentLength: stream.contentLength,
+      mimeType: stream.mimeType,
     };
   }
 

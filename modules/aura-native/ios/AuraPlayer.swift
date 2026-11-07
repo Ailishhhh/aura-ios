@@ -12,6 +12,10 @@ struct AuraTrack {
   let album: String?
   let artwork: URL?
   let duration: Double?
+  /// Set when the stream only answers bounded byte ranges of this size.
+  let chunkSize: Int64?
+  let contentLength: Int64?
+  let mimeType: String?
 
   init?(_ dict: [String: Any]) {
     guard
@@ -27,6 +31,9 @@ struct AuraTrack {
     self.album = dict["album"] as? String
     self.artwork = (dict["artwork"] as? String).flatMap { URL(string: $0) }
     self.duration = (dict["duration"] as? NSNumber)?.doubleValue
+    self.chunkSize = (dict["chunkSize"] as? NSNumber)?.int64Value
+    self.contentLength = (dict["contentLength"] as? NSNumber)?.int64Value
+    self.mimeType = dict["mimeType"] as? String
   }
 }
 
@@ -42,6 +49,8 @@ final class AuraPlayer: NSObject {
   private let player = AVQueuePlayer()
   private var tracks: [ObjectIdentifier: AuraTrack] = [:]
   private var itemObservations: [ObjectIdentifier: NSKeyValueObservation] = [:]
+  /// AVAssetResourceLoader holds its delegate weakly, so the loaders are kept here.
+  private var loaders: [ObjectIdentifier: ChunkedLoader] = [:]
   private var observations: [NSKeyValueObservation] = []
   private var timeObserver: Any?
   private var currentItem: AVPlayerItem?
@@ -188,13 +197,25 @@ final class AuraPlayer: NSObject {
   // MARK: Items
 
   private func makeItem(_ track: AuraTrack) -> AVPlayerItem {
-    var options: [String: Any] = [:]
-    if !track.headers.isEmpty && !track.url.isFileURL {
-      options["AVURLAssetHTTPHeaderFieldsKey"] = track.headers
+    let asset: AVURLAsset
+    var loader: ChunkedLoader?
+    if let chunk = track.chunkSize, chunk > 0, !track.url.isFileURL {
+      let chunked = ChunkedLoader(
+        source: track.url, headers: track.headers, chunkSize: chunk,
+        contentLength: track.contentLength, mimeType: track.mimeType)
+      asset = AVURLAsset(url: chunked.assetURL)
+      asset.resourceLoader.setDelegate(chunked, queue: chunked.queue)
+      loader = chunked
+    } else {
+      var options: [String: Any] = [:]
+      if !track.headers.isEmpty && !track.url.isFileURL {
+        options["AVURLAssetHTTPHeaderFieldsKey"] = track.headers
+      }
+      asset = AVURLAsset(url: track.url, options: options)
     }
-    let asset = AVURLAsset(url: track.url, options: options)
     let item = AVPlayerItem(asset: asset)
     let key = ObjectIdentifier(item)
+    loaders[key] = loader
     tracks[key] = track
     itemObservations[key] = item.observe(\.status, options: [.new]) { [weak self] item, _ in
       guard item.status == .failed else { return }
@@ -208,12 +229,14 @@ final class AuraPlayer: NSObject {
     itemObservations[key]?.invalidate()
     itemObservations[key] = nil
     tracks[key] = nil
+    loaders[key] = nil
   }
 
   private func forgetAll() {
     itemObservations.values.forEach { $0.invalidate() }
     itemObservations.removeAll()
     tracks.removeAll()
+    loaders.removeAll()
   }
 
   private func currentItemChanged() {
@@ -255,6 +278,7 @@ final class AuraPlayer: NSObject {
     if let error = error as NSError? {
       body["domain"] = error.domain
       body["code"] = error.code
+      if let status = error.userInfo["httpStatus"] as? Int { body["httpStatus"] = status }
       if let underlying = error.userInfo[NSUnderlyingErrorKey] as? NSError {
         body["underlying"] = "\(underlying.domain) \(underlying.code)"
       }

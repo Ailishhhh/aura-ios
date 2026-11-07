@@ -10,6 +10,10 @@ export type NativeTrack = {
   album?: string | null;
   artwork?: string | null;
   duration?: number | null;
+  /** Fetch in bounded byte ranges of this size (streams that refuse open-ended requests). */
+  chunkSize?: number | null;
+  contentLength?: number | null;
+  mimeType?: string | null;
 };
 
 /** What InnerTubeX found for a song (shared/…/AuraStreams.kt StreamInfo). */
@@ -97,7 +101,7 @@ export default Aura;
 /** Resolves a song's stream and parses the JSON the Kotlin side returns. */
 export async function resolveStream(
   videoId: string,
-  { quality = "high", allowBoundedRange = false }: { quality?: "high" | "low"; allowBoundedRange?: boolean } = {},
+  { quality = "high", allowBoundedRange = true }: { quality?: "high" | "low"; allowBoundedRange?: boolean } = {},
 ): Promise<StreamInfo> {
   return JSON.parse(await Aura.resolveStream(videoId, quality, allowBoundedRange)) as StreamInfo;
 }
