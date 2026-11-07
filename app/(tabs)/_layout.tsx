@@ -3,6 +3,7 @@
 
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 import { View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { FloatingMiniPlayer, MiniPlayerContent } from "../../src/player/MiniPlayer";
 import { useQueueSelect } from "../../src/player/queue";
@@ -11,7 +12,12 @@ import { liquidGlass } from "../../src/ui/primitives";
 
 function Accessory() {
   const placement = NativeTabs.BottomAccessory.usePlacement();
-  return <MiniPlayerContent inline={placement === "inline"} />;
+  // The accessory lives in the tab bar's own native view, outside the app's gesture root.
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <MiniPlayerContent inline={placement === "inline"} />
+    </GestureHandlerRootView>
+  );
 }
 
 export default function TabsLayout() {

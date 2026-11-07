@@ -70,7 +70,15 @@ jobs:
           key: konan-${{ runner.os }}-${{ hashFiles('shared/build.gradle.kts') }}
           restore-keys: konan-${{ runner.os }}-
 
+      # The Kotlin build takes ten minutes; it only changes when shared/ does.
+      - uses: actions/cache@v4
+        id: shared
+        with:
+          path: modules/aura-native/ios/Frameworks
+          key: aurashared-${{ hashFiles('shared/**', 'scripts/build-shared.sh') }}
+
       - name: Kotlin backend → AuraShared.xcframework
+        if: steps.shared.outputs.cache-hit != 'true'
         run: scripts/build-shared.sh
 
       - run: npm install --no-audit --no-fund

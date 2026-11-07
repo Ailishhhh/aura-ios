@@ -22,7 +22,7 @@ export default function Welcome() {
   useEffect(() => {
     rise.value = withTiming(0, { duration: 1800, easing: Easing.out(Easing.cubic) });
     bob.value = withDelay(1800, withRepeat(withSequence(withTiming(-5, { duration: 2600, easing: Easing.inOut(Easing.sin) }), withTiming(5, { duration: 2600, easing: Easing.inOut(Easing.sin) })), -1, true));
-    tracking.value = withDelay(500, withTiming(-1.5, { duration: 1600, easing: Easing.out(Easing.quint) }));
+    tracking.value = withDelay(500, withTiming(-1.5, { duration: 1600, easing: Easing.out(Easing.poly(5)) }));
   }, [rise, bob, tracking]);
 
   const moon = useAnimatedStyle(() => ({ transform: [{ translateY: rise.value + bob.value }], opacity: 1 - rise.value / 80 }));
