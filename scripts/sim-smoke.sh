@@ -9,6 +9,9 @@ video="${2:-dQw4w9WgXcQ}"
 out="${3:-smoke}"
 bundle="org.aura.music"
 mkdir -p "$out"
+# Absolute: launchd opens --stdout/--stderr paths from the simulator's read-only root otherwise.
+out="$(cd "$out" && pwd)"
+app="$(cd "$(dirname "$app")" && pwd)/$(basename "$app")"
 
 device="${SIM_UDID:-$(xcrun simctl list devices available -j | python3 -c '
 import json, sys
