@@ -110,6 +110,11 @@ public class AuraNativeModule: Module {
 
     // MARK: Diagnostics
 
+    /// The song CI asked the self-test to play (SIMCTL_CHILD_AURA_SMOKE), or nil in normal use.
+    Function("smokeVideo") { () -> String? in
+      ProcessInfo.processInfo.environment["AURA_SMOKE"]
+    }
+
     /// Writes a file into Documents, where CI reads it back from the simulator.
     AsyncFunction("writeDiagnostics") { (name: String, contents: String) in
       let safe = name.replacingOccurrences(of: "/", with: "_")

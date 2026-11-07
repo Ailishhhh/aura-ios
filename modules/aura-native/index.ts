@@ -86,6 +86,7 @@ declare class AuraNativeModule extends NativeModule<Events> {
   getCookies(url: string): Promise<string>;
   clearWebData(): Promise<void>;
 
+  smokeVideo(): string | null;
   writeDiagnostics(name: string, contents: string): Promise<void>;
 }
 

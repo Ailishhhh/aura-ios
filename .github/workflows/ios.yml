@@ -95,6 +95,7 @@ jobs:
             > build/sim.log 2>&1 || { grep -E "error:|fatal" build/sim.log | head -60; tail -n 60 build/sim.log; exit 1; }
 
       - name: Smoke test in the simulator
+        timeout-minutes: 15
         run: |
           scripts/sim-smoke.sh build/sim/Build/Products/Release-iphonesimulator/Aura.app \
             "${{ github.event.inputs.video || 'dQw4w9WgXcQ' }}" build/smoke
@@ -102,6 +103,7 @@ jobs:
       # Built even when the smoke test fails, so there is always an IPA to look at.
       - name: Build for iPhone (unsigned)
         if: ${{ !cancelled() }}
+        timeout-minutes: 45
         run: |
           set -o pipefail
           xcodebuild -workspace ios/Aura.xcworkspace -scheme Aura -configuration Release \

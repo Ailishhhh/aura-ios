@@ -32,7 +32,12 @@ export default function RootLayout() {
 
   const ready = fontsLoaded || !!fontError;
   useEffect(() => {
-    if (ready && !welcome.get().seen) setTimeout(() => router.push("/welcome"), 50);
+    if (!ready) return;
+    const smoke = Aura.smokeVideo();
+    if (smoke) {
+      welcome.set({ ...welcome.get(), seen: true });
+      setTimeout(() => router.push(`/smoke?v=${encodeURIComponent(smoke)}`), 400);
+    } else if (!welcome.get().seen) setTimeout(() => router.push("/welcome"), 50);
   }, [ready]);
 
   useEffect(() => {

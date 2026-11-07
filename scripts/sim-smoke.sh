@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Installs Aura in an iOS Simulator, opens aura://smoke?v=<id>, and waits for the app's own report
-# (src/smoke.ts). Fails unless a stream was resolved and played. Usage:
+# Installs Aura in an iOS Simulator, launches it with AURA_SMOKE=<id> so it runs its own self-test
+# (src/smoke.ts), photographs each screen the test shows, and fails unless a stream was resolved
+# and played. Usage:
 #   scripts/sim-smoke.sh path/to/Aura.app [videoId] [output dir]
 set -euo pipefail
 
@@ -37,7 +38,7 @@ trap 'kill $log_pid 2>/dev/null || true' EXIT
 
 launched=no
 for attempt in 1 2 3 4; do
-  if xcrun simctl launch --terminate-running-process \
+  if SIMCTL_CHILD_AURA_SMOKE="$video" xcrun simctl launch --terminate-running-process \
     --stdout="$out/stdout.log" --stderr="$out/stderr.log" "$device" "$bundle"; then
     launched=yes
     break
@@ -66,40 +67,41 @@ if [ "$launched" != yes ]; then
   for report in "$out"/crashes/*; do [ -f "$report" ] && head -c 4000 "$report"; done
   exit 1
 fi
-sleep 10
-xcrun simctl io "$device" screenshot "$out/1-launch.png"
-
-xcrun simctl openurl "$device" "aura://smoke?v=$video"
 data="$(xcrun simctl get_app_container "$device" "$bundle" data)"
 report="$data/Documents/smoke.json"
+stagefile="$data/Documents/stage.txt"
 
-for _ in $(seq 1 120); do
+xcrun simctl io "$device" recordVideo --codec=h264 --force "$out/run.mp4" > /dev/null 2>&1 &
+video_pid=$!
+sleep 4
+xcrun simctl io "$device" screenshot "$out/00-launch.png"
+
+# The app writes "<n>:<screen>" to stage.txt whenever a screen is ready to photograph.
+seen=""
+for _ in $(seq 1 240); do
+  if [ -f "$stagefile" ]; then
+    now="$(cat "$stagefile")"
+    if [ "$now" != "$seen" ]; then
+      seen="$now"
+      name="$(printf '%02d' "${now%%:*}")-${now#*:}"
+      [ "${now#*:}" = done ] && break
+      xcrun simctl io "$device" screenshot "$out/$name.png" && echo "Photographed $name"
+    fi
+  fi
   if [ -f "$report" ] && grep -q '"finishedAt"' "$report"; then break; fi
-  sleep 2
-  [ -f "$report" ] && [ ! -f "$out/2-playing.png" ] && grep -q '"playback"' "$report" \
-    && xcrun simctl io "$device" screenshot "$out/2-playing.png"
+  # The app stopped: no point waiting.
+  # Simulator apps are ordinary processes on the Mac, so the host can see whether it's alive.
+  if ! pgrep -f "/Aura.app/Aura" > /dev/null; then
+    echo "::error::Aura stopped running during the test"
+    break
+  fi
+  sleep 1
 done
-xcrun simctl io "$device" screenshot "$out/3-end.png"
-
-# Photograph the main pages, opened the way shared links open them.
-if [ -f "$report" ]; then
-  sleep 5
-  shot=4
-  for page in $(python3 -c '
-import json, sys, urllib.parse
-p = json.load(open(sys.argv[1])).get("pages") or {}
-links = []
-if p.get("album"): links.append("https://music.youtube.com/browse/" + p["album"])
-if p.get("artist"): links.append("https://music.youtube.com/channel/" + p["artist"])
-if p.get("radio"): links.append("https://music.youtube.com/playlist?list=" + p["radio"])
-print(" ".join("aura://open?url=" + urllib.parse.quote(l, safe="") for l in links))
-' "$report"); do
-    xcrun simctl openurl "$device" "$page" || true
-    sleep 9
-    xcrun simctl io "$device" screenshot "$out/$shot-page.png"
-    shot=$((shot + 1))
-  done
-fi
+xcrun simctl io "$device" screenshot "$out/99-end.png"
+kill -INT "$video_pid" 2>/dev/null || true
+sleep 3
+echo "--- What the app printed ---"
+grep -vE "UIBackgroundModes|_setUpFeatureFlags" "$out/stderr.log" | tail -n 40 || true
 
 if [ ! -f "$report" ]; then
   echo "::error::The app never wrote smoke.json"

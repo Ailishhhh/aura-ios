@@ -1,7 +1,7 @@
 // Home, Explore, Library and Search, in the system's own tab bar: Liquid Glass on iOS 26, with
 // the mini player in its accessory and search as its own round tab, like Apple Music.
 
-import { NativeTabs } from "expo-router/unstable-native-tabs";
+import { NativeTabs } from "expo-router/native-tabs";
 import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
