@@ -29,7 +29,7 @@ let stageCount = 0;
 async function stage(name: string) {
   stageCount++;
   await Aura.writeDiagnostics("stage.txt", `${stageCount}:${name}`);
-  await wait(2500);
+  await wait(4000);
 }
 
 export async function runSmoke(videoId: string): Promise<void> {

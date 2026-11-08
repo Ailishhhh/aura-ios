@@ -7,13 +7,28 @@ import { useLoad } from "../../../../src/lib/useLoad";
 import { useTab } from "../../../../src/nav";
 import { queue } from "../../../../src/player/queue";
 import { Collection } from "../../../../src/ui/Collection";
-import { playlist, playlistMore } from "../../../../src/yt/music";
+import { next, playlist, playlistMore } from "../../../../src/yt/music";
 import type { Item } from "../../../../src/yt/types";
 
 export default function Playlist() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const tab = useTab();
-  const page = useLoad(id ?? null, () => playlist(id!));
+  // Radios (RD…) aren't browsable pages; YouTube serves them as a queue.
+  const page = useLoad(id ?? null, async () => {
+    if (!id!.startsWith("RD")) return playlist(id!);
+    const radio = await next({ list: id! });
+    return {
+      type: "playlist" as const,
+      id: id!,
+      title: radio.title ?? "Radio",
+      author: null,
+      description: null,
+      meta: `${radio.tracks.length} songs, and more as you listen`,
+      thumbnail: radio.tracks[0]?.thumbnail ?? null,
+      songs: radio.tracks,
+      continuation: null,
+    };
+  });
   const saved = useSaved(id?.replace(/^VL/, ""));
   const [extra, setExtra] = useState<Item[]>([]);
   const [token, setToken] = useState<string | null>(null);
